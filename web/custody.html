@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>BioTreat 人工送检</title><link rel="stylesheet" href="/assets/app.css"></head>
+<body><header><div class="brand">BioTreat 工艺联控</div><nav><a href="/process">工艺总控</a><a href="/aeration">曝气调节</a><a href="/sludge">污泥回流</a><a aria-current="page" href="/custody">人工送检</a><a href="/alarms">异常处置</a></nav></header>
+<main><div class="page-head"><div><h1>人工采样送检链条</h1><div class="muted">采样点、批次、采样者、封样与实验室接收；仅已归档样本可回传化验结果</div></div><div class="status"><span class="dot"></span><span id="health">checking</span></div></div>
+<div class="grid">
+<section class="panel wide"><h2>待接收（已封样 · 在途）</h2><table><thead><tr><th>样本</th><th>处理线</th><th>批次</th><th>采样点</th><th>采样者</th><th>封样时间</th></tr></thead><tbody id="pending"></tbody></table></section>
+<section class="panel"><h2>登记采样任务</h2><form id="register">
+<label>处理线（取最近样本）<select name="line" id="regline"><option>line-1</option><option>line-2</option><option>line-3</option></select></label>
+<label>样本 ID<select name="sample" id="regsample"></select></label>
+<label>采样点<input name="point" value="二沉池出水堰 SD1" required></label>
+<label>采样者<input name="sampler" value="王采样" required></label>
+<label>采样时间（留空=现在）<input name="sampled" placeholder="2026-09-30T08:00:00Z"></label>
+<label>封样时间（留空=现在）<input name="sealed" placeholder="2026-09-30T08:05:00Z"></label>
+<button>登记并封样</button></form></section>
+<section class="panel wide"><h2>已归档（实验室已签收）</h2><table><thead><tr><th>样本</th><th>处理线</th><th>批次</th><th>采样点</th><th>接收人</th><th>接收时间</th></tr></thead><tbody id="archived"></tbody></table></section>
+<section class="panel"><h2>链条处置</h2><form id="act">
+<label>样本 ID（点击表格行自动填入）<input name="sample" id="actsample" required></label>
+<label>经手人（接收/丢失/撤销）<input name="actor" value="李化验" required></label>
+<label>备注（丢失/撤销原因）<input name="note" placeholder="运输破损 / 采样作废"></label>
+<label>发生时间（留空=现在）<input name="at" placeholder="2026-09-30T10:00:00Z"></label>
+<div style="display:flex;gap:8px"><button type="submit" name="op" value="receive">实验室接收</button><button type="submit" name="op" value="lost" class="danger">报丢失</button><button type="submit" name="op" value="revoke" class="danger">撤销</button></div>
+</form></section>
+<section class="panel wide"><h2>交接痕迹</h2><div id="trace" class="muted">点击任一样本行查看完整交接记录</div></section>
+<section class="panel wide"><h2>操作结果</h2><pre id="output">等待操作</pre></section>
+</div></main>
+<script src="/assets/common.js"></script><script>
+function short(id){return id?String(id).slice(0,8):'-'}
+function row(c,arch){const t=arch?(c.received_at||'').replace('T',' ').replace('Z',''):(c.sealed_at||'').replace('T',' ').replace('Z','');const who=arch?'':'暂无';return `<tr data-id="${c.sample_id}" style="cursor:pointer"><td>${short(c.sample_id)}</td><td>${c.line_id}</td><td>${short(c.batch_id)}</td><td>${c.sample_point}</td><td>${arch?(c.handovers[c.handovers.length-1]||{}).actor||'-':c.sampler}</td><td>${arch?t:t}</td></tr>`}
+async function loadSamples(){
+  const line=document.querySelector('#regline').value;
+  const st=await request(`/api/process-lines/${line}`);
+  const sel=document.querySelector('#regsample');
+  sel.innerHTML=(st.samples||[]).map(s=>`<option value="${s.id}">${s.kind} #${s.sequence} ${s.value}${s.unit} @${(s.observed_at||'').slice(11,19)}</option>`).join('')||'<option value="">（暂无传感器样本）</option>';
+}
+async function load(){
+  const d=await request('/api/custody');
+  document.querySelector('#pending').innerHTML=d.pending.map(c=>row(c,false)).join('')||'<tr><td colspan="6" class="muted">无在途样本</td></tr>';
+  document.querySelector('#archived').innerHTML=d.archived.map(c=>row(c,true)).join('')||'<tr><td colspan="6" class="muted">无已归档样本</td></tr>';
+}
+async function showTrace(id){
+  document.querySelector('#actsample').value=id;
+  const c=await request(`/api/custody/${id}`);
+  const names={registered:'采样登记',sealed:'封样',received:'实验室接收',lost:'报丢失',revoked:'撤销'};
+  document.querySelector('#trace').innerHTML=`<table><thead><tr><th>#</th><th>环节</th><th>经手人</th><th>时间</th><th>备注</th></tr></thead><tbody>${c.handovers.map(h=>`<tr><td>${h.seq}</td><td>${names[h.action]||h.action}</td><td>${h.actor}</td><td>${String(h.occurred_at).replace('T',' ').replace('Z','')}</td><td>${h.note||''}</td></tr>`).join('')}</tbody></table><div class="muted" style="margin-top:8px">状态：${c.status}　样本：${c.sample_id}</div>`;
+}
+document.querySelector('#regline').addEventListener('change',()=>loadSamples().catch(showError));
+document.querySelector('#register').addEventListener('submit',async e=>{e.preventDefault();const f=new FormData(e.target);try{show(await request('/api/custody',{method:'POST',body:JSON.stringify({sample_id:f.get('sample'),sample_point:f.get('point'),sampler:f.get('sampler'),sampled_at:f.get('sampled')||undefined,sealed_at:f.get('sealed')||undefined})}));await load()}catch(err){showError(err)}});
+document.querySelector('#act').addEventListener('submit',async e=>{e.preventDefault();const f=new FormData(e.target);const op=f.get('op');const body={actor:f.get('actor'),receiver:f.get('actor'),note:f.get('note'),occurred_at:f.get('at')||undefined};try{show(await request(`/api/custody/${f.get('sample')}/${op==='receive'?'receive':op==='lost'?'lost':'revoke'}`,{method:'POST',body:JSON.stringify(body)}));await load();await showTrace(f.get('sample'))}catch(err){showError(err)}});
+document.addEventListener('click',e=>{const tr=e.target.closest('tr[data-id]');if(tr)showTrace(tr.dataset.id).catch(showError)});
+loadSamples().catch(showError);load().catch(showError);
+</script></body></html>

@@ -41,6 +41,7 @@ func (s *Server) routes() http.Handler {
 	router.Get("/process", s.page("process.html"))
 	router.Get("/aeration", s.page("aeration.html"))
 	router.Get("/sludge", s.page("sludge.html"))
+	router.Get("/custody", s.page("custody.html"))
 	router.Get("/alarms", s.page("alarms.html"))
 	router.Handle("/assets/*", http.StripPrefix("/assets/", http.FileServer(http.FS(s.web))))
 	router.Route("/api", func(api chi.Router) {
@@ -69,6 +70,12 @@ func (s *Server) routes() http.Handler {
 		api.Post("/settling/{lineID}/blanket", s.updateBlanket)
 		api.Post("/dosing", NewDoseHandler(s.plant).ServeHTTP)
 		api.Post("/lab/results", s.labResult)
+		api.Get("/custody", s.custodyViews)
+		api.Post("/custody", s.registerCustody)
+		api.Get("/custody/{sampleID}", s.custodyDetail)
+		api.Post("/custody/{sampleID}/receive", s.receiveCustody)
+		api.Post("/custody/{sampleID}/lost", s.loseCustody)
+		api.Post("/custody/{sampleID}/revoke", s.revokeCustody)
 		api.Post("/emergency/{lineID}", s.emergencyStop)
 	})
 	return router

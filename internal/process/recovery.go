@@ -63,6 +63,25 @@ func (p *Plant) ApplyRecovered(ctx context.Context, event model.Event) error {
 			return err
 		}
 	}
+	if event.Kind == model.EventSampleStored {
+		var sample model.Sample
+		if err := event.Decode(&sample); err != nil {
+			return err
+		}
+		p.catalog.Add(sample)
+	}
+	if event.Kind == model.EventCustodyChanged {
+		var chain model.ChainOfCustody
+		if err := event.Decode(&chain); err != nil {
+			return err
+		}
+		if chain.LineID != event.LineID {
+			return errors.New("custody recovery payload does not match event line")
+		}
+		if err := p.custodyBook.Replace(chain); err != nil {
+			return err
+		}
+	}
 	state.LastEventSeq = event.Sequence
 	state.UpdatedAt = event.OccurredAt
 	p.lines[event.LineID] = state

@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/wyw14/cry-97/internal/aeration"
 	"github.com/wyw14/cry-97/internal/alarm"
+	"github.com/wyw14/cry-97/internal/custody"
 	"github.com/wyw14/cry-97/internal/discharge"
 	"github.com/wyw14/cry-97/internal/dosing"
 	"github.com/wyw14/cry-97/internal/intake"
@@ -50,6 +51,8 @@ type Plant struct {
 	devices       *DeviceBus
 	sampler       *sensor.Sampler
 	receiver      *sensor.Receiver
+	catalog       *sensor.Catalog
+	custodyBook   *custody.Book
 }
 
 func NewPlant(dataDir string, lines []model.LineID, now func() time.Time) (*Plant, error) {
@@ -148,6 +151,7 @@ func NewPlant(dataDir string, lines []model.LineID, now func() time.Time) (*Plan
 		settling: make(map[model.LineID]*settling.State), cycles: settling.NewCycleBook(),
 		interlocks: arbiter, drains: drains, pumps: pumps, handovers: sludge.NewHandoverBook(),
 		sequences: sequences, compensations: queue, devices: devices, sampler: sampler, receiver: receiver,
+		catalog: sensor.NewCatalog(), custodyBook: custody.NewBook(),
 	}
 	for _, lineID := range lines {
 		plant.lines[lineID] = model.NewLineState(lineID, now())

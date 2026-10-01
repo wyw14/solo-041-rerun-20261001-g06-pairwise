@@ -36,6 +36,16 @@ func (p *Plant) ApplyLabResult(ctx context.Context, result model.LabResult, now 
 	if !result.Valid || result.BatchID == uuid.Nil {
 		return QualificationOutcome{}, errors.New("invalid lab result cannot qualify a batch")
 	}
+	chain, hasChain := p.custodyBook.Get(result.SampleID)
+	if !hasChain || !chain.AcceptsResults() {
+		return QualificationOutcome{}, errors.New("lab result sample is not in a valid custody chain")
+	}
+	if chain.BatchID != result.BatchID || chain.LineID != result.LineID {
+		return QualificationOutcome{}, errors.New("lab result does not match the custody chain")
+	}
+	if result.ReceivedAt.Before(*chain.ReceivedAt) {
+		return QualificationOutcome{}, errors.New("lab result predates laboratory custody receipt")
+	}
 	p.mu.Lock()
 	batch, exists := p.batches[result.BatchID]
 	if !exists {

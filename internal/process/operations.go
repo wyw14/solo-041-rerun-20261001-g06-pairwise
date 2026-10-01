@@ -48,6 +48,7 @@ func (p *Plant) ReceiveSample(ctx context.Context, sample model.Sample) error {
 	if err := p.receiver.Receive(ctx, sample, p.now()); err != nil {
 		return err
 	}
+	p.catalog.Add(sample)
 	return p.sampler.Publish(sample)
 }
 

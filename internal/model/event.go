@@ -14,6 +14,7 @@ const (
 	EventBatchCreated      EventKind = "batch.created"
 	EventStageChanged      EventKind = "batch.stage_changed"
 	EventSampleStored      EventKind = "sample.stored"
+	EventCustodyChanged    EventKind = "custody.changed"
 	EventDosingChanged     EventKind = "dosing.changed"
 	EventDeviceCommanded   EventKind = "device.commanded"
 	EventEmergencyIsolated EventKind = "emergency.isolated"
