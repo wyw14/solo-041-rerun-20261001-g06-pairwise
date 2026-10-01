@@ -69,6 +69,23 @@ func (b *PermitBook) ApplyResult(result model.LabResult, now time.Time) (Permit,
 	return permit, nil
 }
 
+func (b *PermitBook) RevokeBatch(batchID uuid.UUID, now time.Time) (Permit, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	current, exists := b.byBatch[batchID]
+	if !exists || !current.Active {
+		return Permit{}, errors.New("permit is not active for batch")
+	}
+	stamp := now.UTC()
+	current.Active = false
+	current.RevokedAt = &stamp
+	b.byBatch[batchID] = current
+	if err := b.valves.Hold(current.LineID, now); err != nil {
+		return Permit{}, err
+	}
+	return current, nil
+}
+
 func (b *PermitBook) Current(batchID uuid.UUID) (Permit, bool) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()

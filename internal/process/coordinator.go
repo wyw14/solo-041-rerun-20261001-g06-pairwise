@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/wyw14/cry-97/internal/aeration"
 	"github.com/wyw14/cry-97/internal/alarm"
+	"github.com/wyw14/cry-97/internal/custody"
 	"github.com/wyw14/cry-97/internal/discharge"
 	"github.com/wyw14/cry-97/internal/dosing"
 	"github.com/wyw14/cry-97/internal/intake"
@@ -36,6 +37,7 @@ type Plant struct {
 	aeration      *aeration.Controller
 	dosing        *dosing.Service
 	labResults    *lab.Results
+	custody       *custody.Book
 	permits       *discharge.PermitBook
 	valves        *discharge.ValveController
 	alarms        *alarm.Service
@@ -144,7 +146,7 @@ func NewPlant(dataDir string, lines []model.LineID, now func() time.Time) (*Plan
 		now: now, lines: make(map[model.LineID]model.LineState), batches: make(map[uuid.UUID]model.Batch),
 		lineBatches: make(map[model.LineID]uuid.UUID), store: store, snapshots: snapshots,
 		intake: intakeController, equalizers: pool, aeration: aerationController, dosing: dosingService,
-		labResults: lab.NewResults(), permits: permits, valves: valves, alarms: alarm.NewService(),
+		labResults: lab.NewResults(), custody: custody.NewBook(), permits: permits, valves: valves, alarms: alarm.NewService(),
 		settling: make(map[model.LineID]*settling.State), cycles: settling.NewCycleBook(),
 		interlocks: arbiter, drains: drains, pumps: pumps, handovers: sludge.NewHandoverBook(),
 		sequences: sequences, compensations: queue, devices: devices, sampler: sampler, receiver: receiver,

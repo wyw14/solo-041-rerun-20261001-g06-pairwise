@@ -36,6 +36,9 @@ func (p *Plant) ApplyLabResult(ctx context.Context, result model.LabResult, now 
 	if !result.Valid || result.BatchID == uuid.Nil {
 		return QualificationOutcome{}, errors.New("invalid lab result cannot qualify a batch")
 	}
+	if err := p.custody.EnsureChainValid(result.SampleID); err != nil {
+		return QualificationOutcome{}, err
+	}
 	p.mu.Lock()
 	batch, exists := p.batches[result.BatchID]
 	if !exists {

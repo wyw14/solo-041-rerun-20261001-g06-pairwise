@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>BioTreat 采样送检</title><link rel="stylesheet" href="/assets/app.css"></head>
+<body><header><div class="brand">BioTreat 工艺联控</div><nav><a href="/process">工艺总控</a><a href="/aeration">曝气调节</a><a href="/sludge">污泥回流</a><a aria-current="page" href="/custody">采样送检</a><a href="/alarms">异常处置</a></nav></header>
+<main><div class="page-head"><div><h1>人工采样送检链条</h1><div class="muted">采样、封样、实验室接收与归档的交接痕迹；仅有效链条中的样本可匹配化验结果</div></div><div class="status"><span class="dot"></span><span id="health">checking</span></div></div>
+<div class="grid">
+<section class="panel"><h2>新建采样任务</h2><form id="collect"><label>处理线<select name="line"><option>line-1</option><option>line-2</option><option>line-3</option></select></label><label>样本编号<input name="sample" placeholder="传感器样本 UUID" required></label><label>采样点<input name="point" value="出水口" required></label><label>采样者<input name="sampler" placeholder="姓名" required></label><button>登记采样</button></form></section>
+<section class="panel"><h2>交接经办</h2><form id="actor"><label>经办人<input name="actor" placeholder="姓名" required></label><label>备注<input name="note" placeholder="可选"></label></form><p class="muted">在下方列表中对任务执行封样、接收、归档、丢失或撤销，每次交接都会留痕。</p></section>
+<section class="panel"><h2>操作结果</h2><pre id="output">等待操作</pre></section>
+<section class="panel wide"><h2>待接收</h2><table><thead><tr><th>采样点</th><th>处理批次</th><th>采样者</th><th>状态</th><th>采样时间</th><th>交接</th></tr></thead><tbody id="pending"></tbody></table></section>
+<section class="panel"><h2>已归档</h2><table><thead><tr><th>采样点</th><th>采样者</th><th>接收时间</th><th>归档时间</th><th></th></tr></thead><tbody id="archived"></tbody></table></section>
+<section class="panel wide"><h2>全部链条</h2><table><thead><tr><th>采样点</th><th>处理线</th><th>处理批次</th><th>状态</th><th>交接</th></tr></thead><tbody id="all"></tbody></table></section>
+</div></main>
+<script src="/assets/common.js"></script><script>
+const LABEL={collected:'已采样',sealed:'已封样',received:'实验室已接收',archived:'已归档',lost:'已丢失',revoked:'已撤销'};
+const NEXT={collected:['seal','lost','revoke'],sealed:['receive','lost','revoke'],received:['archive','lost','revoke']};
+const VERB={seal:'封样',receive:'实验室接收',archive:'归档',lost:'标记丢失',revoke:'撤销'};
+const short=id=>id?id.slice(0,8):'';
+const fmt=t=>t?t.replace('T',' ').slice(0,19):'—';
+function actorNote(){const f=new FormData(document.querySelector('#actor'));return{actor:f.get('actor'),note:f.get('note')}}
+function buttons(t){return(NEXT[t.state]||[]).map(a=>`<button data-task="${t.id}" data-action="${a}"${a==='lost'||a==='revoke'?' class="danger"':''}>${VERB[a]}</button>`).join(' ')+` <button data-trail="${t.id}">痕迹</button>`}
+async function handover(taskID,action){const{actor,note}=actorNote();if(!actor){showError(new Error('请填写经办人'));return}try{show(await request(`/api/custody/tasks/${taskID}/handovers`,{method:'POST',body:JSON.stringify({action,actor,note})}));await load()}catch(err){showError(err)}}
+async function trail(taskID){try{show(await request(`/api/custody/tasks/${taskID}`))}catch(err){showError(err)}}
+async function load(){
+const[pending,archived,all]=await Promise.all([request('/api/custody/pending'),request('/api/custody/archived'),request('/api/custody/tasks')]);
+document.querySelector('#pending').innerHTML=pending.tasks.map(t=>`<tr><td>${t.point}</td><td>${short(t.batch_id)}</td><td>${t.sampler}</td><td>${LABEL[t.state]}</td><td>${fmt(t.created_at)}</td><td>${buttons(t)}</td></tr>`).join('')||'<tr><td colspan="6" class="muted">暂无待接收样本</td></tr>';
+document.querySelector('#archived').innerHTML=archived.tasks.map(t=>`<tr><td>${t.point}</td><td>${t.sampler}</td><td>${fmt(t.received_at)}</td><td>${fmt(t.archived_at)}</td><td><button data-trail="${t.id}">痕迹</button></td></tr>`).join('')||'<tr><td colspan="5" class="muted">暂无归档链条</td></tr>';
+document.querySelector('#all').innerHTML=all.tasks.map(t=>`<tr><td>${t.point}</td><td>${t.line_id}</td><td>${short(t.batch_id)}</td><td>${LABEL[t.state]}</td><td>${buttons(t)}</td></tr>`).join('')||'<tr><td colspan="5" class="muted">暂无采样任务</td></tr>'}
+document.querySelector('#collect').addEventListener('submit',async e=>{e.preventDefault();const f=new FormData(e.target);try{show(await request('/api/custody/tasks',{method:'POST',body:JSON.stringify({line_id:f.get('line'),sample_id:f.get('sample'),point:f.get('point'),sampler:f.get('sampler')})}));await load()}catch(err){showError(err)}});
+document.querySelector('main').addEventListener('click',async e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.task)await handover(b.dataset.task,b.dataset.action);if(b.dataset.trail)await trail(b.dataset.trail)});
+load().catch(showError);
+</script></body></html>

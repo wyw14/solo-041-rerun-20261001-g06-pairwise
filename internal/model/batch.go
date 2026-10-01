@@ -61,6 +61,18 @@ func (b Batch) ApplyQualification(result LabResult, now time.Time) (Batch, error
 	return b, nil
 }
 
+func (b Batch) VoidQualification(sampleID uuid.UUID, now time.Time) (Batch, error) {
+	if b.QualificationSample != sampleID {
+		return b, errors.New("batch qualification does not reference sample")
+	}
+	b.Qualified = false
+	b.UpdatedAt = now.UTC()
+	if b.Stage == StageQualified {
+		b.Stage = StageSettling
+	}
+	return b, nil
+}
+
 func (b Batch) IsActive() bool {
 	return b.Stage != StageClosed && b.Stage != StageIsolated
 }
